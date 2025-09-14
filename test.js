@@ -1,3 +1,4 @@
+// test.js
 import puppeteer from "puppeteer-core";
 import express from "express";
 import dotenv from "dotenv";
@@ -19,12 +20,97 @@ let screenshotBase64 = null;
 let lastMeta = {
   fecha: null,
   noError: true,
-  errorMessage: null
+  errorMessage: null,
+  fileId: null,
+  fileUrl: null
 };
 
-// Env var para GAS
+// Env var para GAS y DRIVE_LIBRARY (uploader a Drive)
 const GAS_URL = process.env.GAS_URL || null;
+const DRIVE_LIBRARY = process.env.DRIVE_LIBRARY || null;
 
+/**
+ * Sube el base64 a tu AppScript que guarda en Drive.
+ * Devuelve el fileId o null si falló.
+ */
+async function uploadToDrive(base64, filename = "screenshot.png", mime = "image/png") {
+  if (!DRIVE_LIBRARY) {
+    console.warn("⚠️ DRIVE_LIBRARY no está definida. Saltando upload a Drive.");
+    return null;
+  }
+
+  const payload = {
+    archivo_name: filename,
+    file_mime: mime,
+    archivo_base64: base64
+  };
+
+  try {
+    const res = await fetch(DRIVE_LIBRARY, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const text = await res.text();
+    // Tu frontend hacía .json() y luego JSON.parse(result), por eso intento manejar ambos casos.
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch (e) {
+      // si no es JSON string, intentar usar text como-is
+      parsed = text;
+    }
+
+    // parsed puede ser un objeto, o un string que contiene JSON. Normalizo:
+    if (typeof parsed === "string") {
+      try {
+        parsed = JSON.parse(parsed);
+      } catch (e) {
+        // queda como string
+      }
+    }
+
+    // Intento extraer fileId de varias maneras
+    if (parsed && typeof parsed === "object") {
+      // rutas comunes
+      const candidates = ["fileId", "file_id", "id", "fileId_str", "fileIdString"];
+      for (const c of candidates) {
+        if (parsed[c]) {
+          return String(parsed[c]);
+        }
+      }
+      // si viene {status:'ok', fileId: '...'} o similar, lo cubrimos arriba
+      // si hay nested, buscar recursivamente (limitado)
+      const findFileIdRec = (obj) => {
+        if (!obj || typeof obj !== "object") return null;
+        for (const k of Object.keys(obj)) {
+          if (/file.*id/i.test(k) && obj[k]) return String(obj[k]);
+          const v = obj[k];
+          if (typeof v === "object") {
+            const r = findFileIdRec(v);
+            if (r) return r;
+          }
+        }
+        return null;
+      };
+      const nested = findFileIdRec(parsed);
+      if (nested) return nested;
+    }
+
+    // Si no encontré fileId, logueo la respuesta para debugging
+    console.warn("⚠️ Respuesta inesperada del uploader a Drive (DRIVE_LIBRARY). Texto:", text);
+    return null;
+
+  } catch (err) {
+    console.error("❌ Error subiendo a Drive vía DRIVE_LIBRARY:", err.message);
+    return null;
+  }
+}
+
+/**
+ * Envia metadatos a tu GAS (emailer). No incluye la imagen base64
+ */
 async function sendToGAS(payload) {
   if (!GAS_URL) {
     console.warn("⚠️ GAS_URL no está definida. Saltando POST a GAS.");
@@ -34,6 +120,7 @@ async function sendToGAS(payload) {
   try {
     const res = await fetch(GAS_URL, {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
 
@@ -70,31 +157,37 @@ async function takeScreenshot() {
   } catch (error) {
     console.error("⚠️ Error durante el proceso:", error);
     noError = false;
+    // guardo toda la info en string
     errorMessage = error?.message ?? String(error);
   } finally {
     try {
-      // screenshot en memoria
+      // screenshot en memoria (buffer)
       const buffer = await page.screenshot({ encoding: "binary" });
       screenshotBase64 = buffer.toString("base64");
 
-      // actualizar meta en memoria
-      lastMeta = { fecha, noError, errorMessage };
+      // intento subir a Drive usando tu endpoint DRIVE_LIBRARY
+      const fileId = await uploadToDrive(screenshotBase64, "screenshot.png", "image/png");
+      const fileUrl = fileId ? `https://drive.google.com/uc?id=${fileId}` : null;
 
-      // Enviar a GAS (no bloqueante a la app; esperamos pero no fallamos si falla)
+      // actualizar meta en memoria (incluyendo fileId/fileUrl)
+      lastMeta = { fecha, noError, errorMessage, fileId: fileId ?? null, fileUrl: fileUrl ?? null };
+
+      // enviar a GAS solo metadatos y el link si existe (no el base64)
       await sendToGAS({
         fecha,
         noError,
         errorMessage,
-        screenshotBase64,
-        email: process.env.EMAIL
+        fileId,
+        fileUrl,
+        email: process.env.EMAIL ?? ""
       });
 
-      console.log("📸 Screenshot tomada y enviada a GAS (si se configuró).");
+      console.log("📸 Screenshot tomada; fileId:", fileId, " fileUrl:", fileUrl);
 
     } catch (err) {
-      console.error("⚠️ Error generando screenshot o enviando a GAS:", err.message);
+      console.error("⚠️ Error generando screenshot o subiendo:", err.message);
       // actualizar meta con el fallo en el proceso de screenshot
-      lastMeta = { fecha, noError: false, errorMessage: err.message };
+      lastMeta = { fecha, noError: false, errorMessage: err.message, fileId: null, fileUrl: null };
     }
 
     try {
@@ -105,15 +198,19 @@ async function takeScreenshot() {
   }
 }
 
-// Endpoint /ss devuelve HTML con screenshot y meta
+// Endpoint /ss devuelve HTML con screenshot y meta (en memoria)
 app.get("/ss", async (req, res) => {
   const escapeHtml = s => s ? String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;") : "";
 
-  const { fecha, noError, errorMessage } = lastMeta;
+  const { fecha, noError, errorMessage, fileId, fileUrl } = lastMeta;
 
   const statusBadge = noError
     ? `<span style="background:#28a745;color:#fff;padding:6px 10px;border-radius:6px;font-weight:600">OK</span>`
     : `<span style="background:#dc3545;color:#fff;padding:6px 10px;border-radius:6px;font-weight:600">ERROR</span>`;
+
+  const imgHtml = fileUrl
+    ? `<p>Archivo guardado en Drive: <a href="${escapeHtml(fileUrl)}" target="_blank">${escapeHtml(fileUrl)}</a></p>`
+    : (screenshotBase64 ? `<img class="sshot" src="data:image/png;base64,${screenshotBase64}" alt="screenshot" />` : `<div style="padding:48px;border:1px dashed #ddd;border-radius:8px;color:#666">No hay screenshot disponible</div>`);
 
   const html = `<!doctype html>
   <html lang="es">
@@ -130,7 +227,7 @@ app.get("/ss", async (req, res) => {
         img.sshot{max-width:100%;height:auto;border:1px solid #ddd;box-shadow:0 6px 18px rgba(0,0,0,0.06);border-radius:6px}
         .error{color:#b22;margin-top:8px;white-space:pre-wrap}
         .small{font-size:0.9rem;color:#666}
-        .foot{margin-top:18px;font-size:0.85rem;color:#666}
+        .foot{margin-top:18px;font-size:0.85rem;color:#666'}
       </style>
     </head>
     <body>
@@ -149,12 +246,11 @@ app.get("/ss", async (req, res) => {
         <div class="meta">
           <div><strong>noError:</strong> ${noError ? "true" : "false"}</div>
           ${errorMessage ? `<div class="error"><strong>Error:</strong> ${escapeHtml(errorMessage)}</div>` : ""}
+          ${fileId ? `<div style="margin-top:8px;"><strong>fileId:</strong> ${escapeHtml(fileId)}</div>` : ""}
         </div>
 
         <div class="image-wrap">
-          ${screenshotBase64
-        ? `<img class="sshot" src="data:image/png;base64,${screenshotBase64}" alt="screenshot" />`
-        : `<div style="padding:48px;border:1px dashed #ddd;border-radius:8px;color:#666">No hay screenshot disponible</div>`}
+          ${imgHtml}
         </div>
       </div>
     </body>
