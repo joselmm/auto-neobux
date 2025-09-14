@@ -1,6 +1,7 @@
 import puppeteer from "puppeteer-core";
 import express from "express";
 import dotenv from "dotenv";
+import fetch from "node-fetch"; // npm i node-fetch
 import { generateToWait, login, goSeeAds } from "./modules/utils.js";
 
 dotenv.config();
@@ -21,10 +22,32 @@ let lastMeta = {
   errorMessage: null
 };
 
+// Env var para GAS
+const GAS_URL = process.env.GAS_URL || null;
+
+async function sendToGAS(payload) {
+  if (!GAS_URL) {
+    console.warn("⚠️ GAS_URL no está definida. Saltando POST a GAS.");
+    return;
+  }
+
+  try {
+    const res = await fetch(GAS_URL, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+
+    const text = await res.text().catch(() => "");
+    console.log("✅ Respuesta GAS:", res.status, res.statusText, text);
+  } catch (err) {
+    console.error("❌ Error enviando payload a GAS:", err.message);
+  }
+}
+
 async function takeScreenshot() {
   let noError = true;
   let errorMessage = null;
-  let fecha = fechaColombia();
+  const fecha = fechaColombia();
 
   const browser = await puppeteer.launch({
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
@@ -47,7 +70,7 @@ async function takeScreenshot() {
   } catch (error) {
     console.error("⚠️ Error durante el proceso:", error);
     noError = false;
-    errorMessage = error.message;
+    errorMessage = error?.message ?? String(error);
   } finally {
     try {
       // screenshot en memoria
@@ -56,14 +79,29 @@ async function takeScreenshot() {
 
       // actualizar meta en memoria
       lastMeta = { fecha, noError, errorMessage };
+
+      // Enviar a GAS (no bloqueante a la app; esperamos pero no fallamos si falla)
+      await sendToGAS({
+        fecha,
+        noError,
+        errorMessage,
+        screenshotBase64,
+        email: process.env.EMAIL
+      });
+
+      console.log("📸 Screenshot tomada y enviada a GAS (si se configuró).");
+
     } catch (err) {
-      console.error("⚠️ Error generando screenshot:", err.message);
-      noError = false;
-      errorMessage = err.message;
-      lastMeta = { fecha, noError, errorMessage };
+      console.error("⚠️ Error generando screenshot o enviando a GAS:", err.message);
+      // actualizar meta con el fallo en el proceso de screenshot
+      lastMeta = { fecha, noError: false, errorMessage: err.message };
     }
 
-    await browser.close();
+    try {
+      await browser.close();
+    } catch (e) {
+      console.warn("⚠️ Error cerrando browser:", e.message);
+    }
   }
 }
 
@@ -123,6 +161,12 @@ app.get("/ss", async (req, res) => {
   </html>`;
 
   res.type("html").send(html);
+});
+
+// Endpoint /alf devuelve ok
+app.post("/alf", express.json(), (req, res) => {
+  // responde OK de forma inmediata
+  res.status(200).json({ ok: true });
 });
 
 // Tomar screenshot al iniciar servidor
