@@ -18,6 +18,11 @@ async function takeScreenshot() {
   await page.waitForSelector('a[style="color:#00ac00;"]');
   await page.click('a[style="color:#00ac00;"]');
   await new Promise(r=>setTimeout(r,6000))
+
+  const element = await page.$('a[style="color:#00ac00;"]');
+  if(element===null) console.log("No se encontro el elemto de captcha") 
+    else console.log("si eencontrro el ejemto de capcha")
+ 
   await page.screenshot({ path: "screenshot.png" });
   await browser.close();
   console.log("✅ Screenshot saved as screenshot.png");
