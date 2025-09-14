@@ -15,6 +15,9 @@ async function takeScreenshot() {
 
   const page = await browser.newPage();
   await page.goto("https://neobux.com", { waitUntil: "networkidle2" });
+  await page.waitForSelector('a[style="color:#00ac00;"]');
+  await page.click('a[style="color:#00ac00;"]');
+  await new Promise(r=>setTimeout(r,6000))
   await page.screenshot({ path: "screenshot.png" });
   await browser.close();
   console.log("✅ Screenshot saved as screenshot.png");
