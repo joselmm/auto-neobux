@@ -27,7 +27,8 @@ export async function getContextIp() {
 }
 
 export async function login(page) {
-
+    var ip= await getContextIp()
+    console.log("LA IP DEL CONTEXT ES "+ip)
     var usernameSelector = "#Kf1";
     var passwordSelector = "#Kf2";
     var captchaSelector = "#Kf3";
@@ -46,6 +47,7 @@ export async function login(page) {
 
 
     if (captchaIsHiddenType) {
+        console.log("NO HAY CAPTCHA INTENTANDO ENTRAR")
         await new Promise(r => setTimeout(r, generateToWait(2450, 3149)));
         return await pressEnter(page);;
     }
