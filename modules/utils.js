@@ -186,9 +186,23 @@ async function seeFoundAd(page, browser) {
     console.log(
       `✅ No se encontró más ads después de ${globalThis.context.attempts} intentos. Fin.`
     );
+
+    const saldo = await page
+      .evaluate(() => {
+        const el = document.querySelector("#t_saldo");
+        return el ? el.innerText : null;
+      })
+      .catch(e => {
+        console.log("Error hallando saldo:", e.message);
+        return null;
+      });
+
+    if (typeof saldo === "string") {
+      globalThis.context.saldo = saldo;
+    }
     return;
   }
-  
+
   globalThis.context.attempts++;
 
   // ✅ como el selector existe, puedes rescatar el saldo en cada iteración
