@@ -157,36 +157,34 @@ async function takeScreenshot() {
   } catch (error) {
     console.error("⚠️ Error durante el proceso:", error);
     noError = false;
-    // guardo toda la info en string
     errorMessage = error?.message ?? String(error);
   } finally {
     try {
-      // screenshot en memoria (buffer)
       const buffer = await page.screenshot({ encoding: "binary" });
       screenshotBase64 = buffer.toString("base64");
 
-      // intento subir a Drive usando tu endpoint DRIVE_LIBRARY
       const fileId = await uploadToDrive(screenshotBase64, "screenshot.png", "image/png");
       const fileUrl = fileId ? `https://drive.google.com/uc?id=${fileId}` : null;
 
-      // actualizar meta en memoria (incluyendo fileId/fileUrl)
       lastMeta = { fecha, noError, errorMessage, fileId: fileId ?? null, fileUrl: fileUrl ?? null };
 
-      // enviar a GAS solo metadatos y el link si existe (no el base64)
+      // 👇 incluir las variables globales en el payload
       await sendToGAS({
         fecha,
         noError,
         errorMessage,
         fileId,
         fileUrl,
-        email: process.env.EMAIL ?? ""
+        email: process.env.EMAIL ?? "",
+        attempts: globalThis.context?.attempts ?? 0,
+        clicks: globalThis.context?.clicks ?? 0,
+        saldo: globalThis.context?.saldo ?? "—"
       });
 
       console.log("📸 Screenshot tomada; fileId:", fileId, " fileUrl:", fileUrl);
 
     } catch (err) {
       console.error("⚠️ Error generando screenshot o subiendo:", err.message);
-      // actualizar meta con el fallo en el proceso de screenshot
       lastMeta = { fecha, noError: false, errorMessage: err.message, fileId: null, fileUrl: null };
     }
 
@@ -212,6 +210,7 @@ app.get("/ss", async (req, res) => {
     ? `<p>Archivo guardado en Drive: <a href="${escapeHtml(fileUrl)}" target="_blank">${escapeHtml(fileUrl)}</a></p>`
     : (screenshotBase64 ? `<img class="sshot" src="data:image/png;base64,${screenshotBase64}" alt="screenshot" />` : `<div style="padding:48px;border:1px dashed #ddd;border-radius:8px;color:#666">No hay screenshot disponible</div>`);
 
+  // 👇 aquí mostramos attempts, clicks y saldo en el cuerpo HTML
   const html = `<!doctype html>
   <html lang="es">
     <head>
@@ -235,7 +234,7 @@ app.get("/ss", async (req, res) => {
         <header>
           <div>
             <h2 style="margin:0 0 6px 0">Captura de pantalla</h2>
-            <div class="small">Fecha (guardada al tomar la captura): <strong>${escapeHtml(fecha ?? "—")}</strong></div>
+            <div class="small">Fecha: <strong>${escapeHtml(fecha ?? "—")}</strong></div>
           </div>
           <div style="text-align:right">
             ${statusBadge}
@@ -245,6 +244,9 @@ app.get("/ss", async (req, res) => {
 
         <div class="meta">
           <div><strong>noError:</strong> ${noError ? "true" : "false"}</div>
+          <div><strong>Attempts:</strong> ${escapeHtml(globalThis.context?.attempts ?? 0)}</div>
+          <div><strong>Clicks:</strong> ${escapeHtml(globalThis.context?.clicks ?? 0)}</div>
+          <div><strong>Saldo:</strong> ${escapeHtml(globalThis.context?.saldo ?? "—")}</div>
           ${errorMessage ? `<div class="error"><strong>Error:</strong> ${escapeHtml(errorMessage)}</div>` : ""}
           ${fileId ? `<div style="margin-top:8px;"><strong>fileId:</strong> ${escapeHtml(fileId)}</div>` : ""}
         </div>

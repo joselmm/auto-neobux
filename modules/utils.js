@@ -1,5 +1,6 @@
 import fetch from "node-fetch";
 import { solveCaptcha } from "./captchaSolver.js"
+import {TimeoutError} from "puppeteer-core";
 const viewAdsSelector = "#navAds";
 const adStarSelector = "div.icon i.ic-star-1";
 const closeAdTabSelector = 'a[onclick="wClose()"]';
@@ -27,8 +28,8 @@ export async function getContextIp() {
 }
 
 export async function login(page) {
-    var ip= await getContextIp()
-    console.log("LA IP DEL CONTEXT ES "+ip)
+    var ip = await getContextIp()
+    console.log("LA IP DEL CONTEXT ES " + ip)
     var usernameSelector = "#Kf1";
     var passwordSelector = "#Kf2";
     var captchaSelector = "#Kf3";
@@ -149,89 +150,147 @@ export async function waitAndClick(page, selector, min, max) {
 
 
 export async function goSeeAds(page, browser) {
-    await page.waitForNavigation();
-    await new Promise(r => setTimeout(r, generateToWait(4000, 5000)));
+  await page.waitForNavigation();
+  await new Promise(r => setTimeout(r, generateToWait(4000, 5000)));
 
-    await page.waitForSelector(viewAdsSelector);
-    await waitAndClick(page, viewAdsSelector, 402, 707);
+  await page.waitForSelector(viewAdsSelector);
+  await waitAndClick(page, viewAdsSelector, 402, 707);
 
-    await waitAndClick(page, viewAdsSelector, 402, 707);
+  await waitAndClick(page, viewAdsSelector, 402, 707);
 
-    let attempts = 0;
-    await seeFoundAd(page, browser, attempts);
+  // inicializar contexto global
+  globalThis.context ??= {
+    attempts: 0,
+    clicks: 0,
+    saldo: null,
+  };
+
+  await seeFoundAd(page, browser);
 }
 
-async function seeFoundAd(page, browser, attempts) {
+async function seeFoundAd(page, browser) {
+  const selectorStarFound = await page
+    .waitForSelector(adStarSelector, { timeout: 3000 })
+    .then(() => true)
+    .catch(e => {
+      if (e instanceof TimeoutError) {
+        console.log("Timeout para el selector de star");
+        return false;
+      } else {
+        throw e;
+      }
+    });
 
-    await page.waitForSelector(adStarSelector)
-    const ad = await page.$(adStarSelector);
-    attempts++;
+  globalThis.context.attempts++;
 
-    if (ad === null) {
-        console.log("✅ No se encontró más ads después de " + attempts + " intentos. Fin.");
-        return; // 👈 cortar aquí
+  if (!selectorStarFound) {
+    console.log(
+      `✅ No se encontró más ads después de ${globalThis.context.attempts} intentos. Fin.`
+    );
+    return;
+  }
+
+  // ✅ como el selector existe, puedes rescatar el saldo en cada iteración
+  const saldo = await page
+    .evaluate(() => {
+      const el = document.querySelector("#t_saldo");
+      return el ? el.innerText : null;
+    })
+    .catch(e => {
+      console.log("Error hallando saldo:", e.message);
+      return null;
+    });
+
+  if (typeof saldo === "string") {
+    globalThis.context.saldo = saldo;
+  }
+
+  const ad = await page.$(adStarSelector);
+  if (!ad) {
+    console.log("El selector existía pero no se encontró el elemento.");
+    return;
+  }
+
+  await new Promise(r => setTimeout(r, generateToWait(3000, 4000)));
+
+  // 🔢 Rescatar número de ad
+  const num = await page.evaluate(
+    ad =>
+      parseInt(
+        ad.parentElement.parentElement.parentElement
+          .onclick.toString()
+          .match(/ggz\([^,]+,\s*'(\d+)'\)/)?.[1]
+      ),
+    ad
+  );
+
+  console.log(
+    `➡️ Click en banner #${num} (intento ${globalThis.context.attempts}).`
+  );
+
+  // Disparar onmouseover
+  await page.evaluate(
+    ad => ad.parentElement.parentElement.parentElement.onmouseover(),
+    ad
+  );
+  await new Promise(r => setTimeout(r, generateToWait(457, 1304)));
+
+  // Click en banner
+  await page.evaluate(async ad => {
+    function generateToWait(min = 927, max = 2469) {
+      return Math.floor(Math.random() * (max - min + 1)) + min;
     }
+    const banner = ad.parentElement.parentElement.parentElement;
+    banner.scrollIntoView();
+    await new Promise(r => setTimeout(r, generateToWait(2700, 3000)));
+    banner.click();
+  }, ad);
 
+  await new Promise(r => setTimeout(r, generateToWait(893, 2034)));
 
+  // Click en botón rojo
+  await page.evaluate(
+    (ad, num) => {
+      const btn = ad.parentElement.parentElement.parentElement.querySelector(
+        "#i" + num
+      );
+      if (btn) btn.click();
+    },
+    ad,
+    num
+  );
 
-    await new Promise(r => setTimeout(r, generateToWait(3000, 4000)));
+  await new Promise(r => setTimeout(r, generateToWait(2356, 3000)));
 
-    // RESCATAR NUMERO DE AD
-    const num = await page.evaluate(
-        ad => parseInt(
-            ad.parentElement.parentElement.parentElement
-                .onclick.toString()
-                .match(/ggz\([^,]+,\s*'(\d+)'\)/)?.[1]
-        ),
-        ad
-    );
+  // Buscar tab de la ad
+  const adTab = await findAdtab(browser);
+  if (!adTab) throw new Error("No se encontró el tab de la ad");
 
-    console.log("➡️ Click en banner #" + num + " (intento " + attempts + ").");
+  await adTab.bringToFront();
+  await adTab.waitForSelector(closeAdTabSelector, {
+    timeout: 60000,
+    visible: true,
+  });
 
-    // DISPARAR ONMOUSEOVER
-    await page.evaluate(ad => ad.parentElement.parentElement.parentElement.onmouseover(), ad);
-    await new Promise(r => setTimeout(r, generateToWait(457, 1304)));
+  await adTab
+    .evaluate(sel => {
+      const el = document.querySelector(sel);
+      if (el) el.click();
+    }, closeAdTabSelector)
+    .then(() => {
+      console.log("Se dio click en el ad #" + num);
+      globalThis.context.clicks++;
+    });
 
-    // CLICK EN BANNER
-    await page.evaluate(async (ad, generateToWait) => {
-        function generateToWait(min = 927, max = 2469) {
-            return Math.floor(Math.random() * (max - min + 1)) + min;
-        }
-        var banner = ad.parentElement.parentElement.parentElement;
-        banner.scrollIntoView();
-        await new Promise(r => setTimeout(r, generateToWait(2700, 3000)));
-        banner.click();
-        return
-    }, ad);
+  await new Promise(r => setTimeout(r, generateToWait(1400, 2700)));
 
-    await new Promise(r => setTimeout(r, generateToWait(893, 2034)));
+  // Recargar página de banners
+  await page.reload({ waitUntil: "domcontentloaded" });
 
-    // CLICK EN BOTON ROJO
-    await page.evaluate(
-        (ad, num) => ad.parentElement.parentElement.parentElement.querySelector("#i" + num).click(),
-        ad,
-        num
-    );
-
-    await new Promise(r => setTimeout(r, generateToWait(2356, 3000)));
-
-    // BUSCAR TAB DE LA AD
-    const adTab = await findAdtab(browser);
-    if (!adTab) throw new Error("No se encontró el tab de la ad");
-
-    await adTab.bringToFront();
-    await adTab.waitForSelector(closeAdTabSelector, { timeout: 60000, visible: true }); // 👈 aquí usas directamente el tab
-
-    await adTab.evaluate(closeAdTabSelector => document.querySelector(closeAdTabSelector).click(), closeAdTabSelector)
-
-    console.log("Se dio click en el ad #"+num);
-    await new Promise(r => setTimeout(r, generateToWait(1400, 2700)));
-    // RECARGAR PAGINA DE BANNERS
-    await page.reload({ waitUntil: "domcontentloaded" });
-
-    // 🔄 Repetir hasta que no queden más ads
-    return await seeFoundAd(page, browser, attempts);
+  // 🔄 Repetir hasta que no queden más ads
+  return seeFoundAd(page, browser);
 }
+
 
 
 
