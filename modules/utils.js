@@ -1,6 +1,7 @@
 import fetch from "node-fetch";
 import { solveCaptcha } from "./captchaSolver.js"
 import { TimeoutError } from "puppeteer-core";
+import { getUserNameList } from "./ss.js";
 const viewAdsSelector = "#navAds";
 const adStarSelector = "div.icon i.ic-star-1";
 const closeAdTabSelector = 'a[onclick="wClose()"]';
@@ -28,8 +29,8 @@ export async function getContextIp() {
 }
 
 export async function login(page) {
-  var ip = await getContextIp()
-  console.log("LA IP DEL CONTEXT ES " + ip)
+  /* var ip = await getContextIp()
+  console.log("LA IP DEL CONTEXT ES " + ip) */
   var usernameSelector = "#Kf1";
   var passwordSelector = "#Kf2";
   var captchaSelector = "#Kf3";
@@ -336,6 +337,8 @@ export async function findAdtab(browser, prefix = "https://www.neobux.com/v/?a="
 async function updateIpInfoInSheetList() {
 
   var ip = await getContextIp();
+
+  console.log("LA IP DEL CONTEXT ES " + ip)
 
   var lista = await getUserNameList()
 
