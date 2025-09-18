@@ -80,7 +80,6 @@ async function uploadToDrive(base64, filename = "screenshot.png", mime = "image/
           return String(parsed[c]);
         }
       }
-      // si viene {status:'ok', fileId: '...'} o similar, lo cubrimos arriba
       // si hay nested, buscar recursivamente (limitado)
       const findFileIdRec = (obj) => {
         if (!obj || typeof obj !== "object") return null;
@@ -267,9 +266,32 @@ app.post("/alf", express.json(), (req, res) => {
   res.status(200).json({ ok: true });
 });
 
-// Tomar screenshot al iniciar servidor
-takeScreenshot().catch(console.error);
+/**
+ * NUEVO: Endpoint /exec para lanzar la ejecución de Puppeteer en segundo plano.
+ * Responde inmediatamente { ok: true } y lanza takeScreenshot() sin await,
+ * por lo que la tarea se ejecuta asincrónicamente en "background".
+ */
+app.get("/exec", (req, res) => {
+  try {
+    // Lanzar la tarea en background sin esperar (no bloquea la respuesta)
+    takeScreenshot().catch(err => {
+      // Capturamos cualquier error no manejado en la promesa
+      console.error("❌ Error en background takeScreenshot():", err);
+    });
+  } catch (err) {
+    // Esto es por si fallara la invocación síncrona (raro)
+    console.error("❌ Error lanzando takeScreenshot():", err);
+  }
+
+  // Respuesta inmediata al cliente
+  res.json({ ok: true });
+});
+
+// NOTA: ya no ejecutamos takeScreenshot() al iniciar el servidor.
+// Si quieres mantener la ejecución automática, descomenta la línea siguiente:
+// takeScreenshot().catch(console.error);
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}/ss`);
+  console.log(`🔁 Endpoint para ejecutar en background: http://localhost:${PORT}/exec`);
 });
