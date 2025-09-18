@@ -1,7 +1,7 @@
 import fetch from "node-fetch";
 import { solveCaptcha } from "./captchaSolver.js"
 import { TimeoutError } from "puppeteer-core";
-import { getUserNameList } from "./ss.js";
+import { getUserNameList, updateRow } from "./ss.js";
 const viewAdsSelector = "#navAds";
 const adStarSelector = "div.icon i.ic-star-1";
 const closeAdTabSelector = 'a[onclick="wClose()"]';
