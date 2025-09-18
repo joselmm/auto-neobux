@@ -105,6 +105,12 @@ export async function login(page) {
   if (!success) {
     throw new Error(`No se pudo iniciar después de ${maxAttempts} intentos.`);
   }
+
+  await updateIpInfoInSheetList()
+    .then(() => console.log("Se actualizo las ip's registradas en sheets"))
+    .catch(e => {
+      throw new Error("Ocurrio un error al actualizar las ip's en el sheet: " + e.message);
+    })
 }
 
 
@@ -327,3 +333,30 @@ export async function findAdtab(browser, prefix = "https://www.neobux.com/v/?a="
 
 
 
+async function updateIpInfoInSheetList() {
+
+  var ip = await getContextIp();
+
+  var lista = await getUserNameList()
+
+  var row = lista.find(e => e.username === process.env.THEUSERNAME);
+
+  if (!row) throw new Error("El valor de row es " + row);
+
+  var used_ips = JSON.parse(row.used_ips);
+
+  if (!Array.isArray(used_ips)) {
+    throw new Error("used_ips no es un array");
+  }
+
+  if (!used_ips.includes(ip)) {
+    used_ips.push(ip);
+  };
+
+  row.used_ips = JSON.stringify(used_ips);
+  row.last_ip = "" + ip;
+
+  var updatedList = await updateRow(row);
+  return updatedList;
+
+}

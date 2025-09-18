@@ -3,7 +3,8 @@ import puppeteer from "puppeteer-core";
 import express from "express";
 import dotenv from "dotenv";
 import fetch from "node-fetch"; // npm i node-fetch
-import { generateToWait, login, goSeeAds } from "./modules/utils.js";
+import { generateToWait, login, goSeeAds, getContextIp } from "./modules/utils.js";
+import { getUserNameList, updateRow } from "./modules/ss.js";
 
 dotenv.config();
 
@@ -12,7 +13,7 @@ const PORT = process.env.PORT || 3000;
 
 // 📅 Devuelve fecha en formato colombiano
 function fechaColombia() {
-  return new Date().toLocaleString("es-CO", { dateStyle: "full", timeStyle: "medium" });
+  return new Date().toLocaleString("es-CO", { timeZone: 'America/Bogota', dateStyle: "full", timeStyle: "medium" });
 }
 
 // Variables en memoria
@@ -197,7 +198,7 @@ async function takeScreenshot() {
 
 // Endpoint /ss devuelve HTML con screenshot y meta (en memoria)
 app.get("/ss", async (req, res) => {
-  const escapeHtml = s => s ? String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;") : "";
+  const escapeHtml = s => s ? String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;") : "";
 
   const { fecha, noError, errorMessage, fileId, fileUrl } = lastMeta;
 
