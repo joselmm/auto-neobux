@@ -216,10 +216,7 @@ async function seeFoundAd(page, browser) {
         console.log("se actualizo el saldo en sheets a: " + saldoParaSheet)
       })
         .catch(e => {
-
           console.error("Ocurrrio  un error al actualizar current_balance en sheet: " + e.message)
-
-
         })
     }
 
@@ -312,6 +309,10 @@ async function seeFoundAd(page, browser) {
     timeout: 60000,
     visible: true,
   });
+  var esperarParaCerrar = generateToWait(845, 1580);
+  console.log("se esperará "+esperarParaCerrar+ " ms.")
+  await new Promise(r=>setTimeout(r,esperarParaCerrar))
+  console.log("se esper+o "+esperarParaCerrar+ " ms.")
 
   await adTab
     .evaluate(sel => {
