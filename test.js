@@ -152,6 +152,11 @@ async function takeScreenshot() {
     await new Promise(r => setTimeout(r, generateToWait(3889, 4005)));
 
     await login(page);
+    globalThis.context ??= {
+      attempts: 0,
+      clicks: 0,
+      saldo: null,
+    };
     await goSeeAds(page, browser);
 
   } catch (error) {
@@ -178,7 +183,8 @@ async function takeScreenshot() {
         email: process.env.EMAIL ?? "",
         attempts: globalThis.context?.attempts ?? 0,
         clicks: globalThis.context?.clicks ?? 0,
-        saldo: globalThis.context?.saldo ?? "—"
+        saldo: globalThis.context?.saldo ?? "—",
+        next_exec:globalThis.context?.next_exec ?? "_"
       });
 
       console.log("📸 Screenshot tomada; fileId:", fileId, " fileUrl:", fileUrl);

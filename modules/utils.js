@@ -108,7 +108,11 @@ export async function login(page) {
   }
 
   await updateIpInfoInSheetList()
-    .then(() => console.log("Se actualizo las ip's registradas en sheets"))
+    .then((lista) => {
+      var {next_exec} = lista.find(e => e.username === process.env.THEUSERNAME);
+      globalThis.context.next_exec=next_exec;
+      console.log("Se actualizo las ip's registradas en sheets")
+    })
     .catch(e => {
       throw new Error("Ocurrio un error al actualizar las ip's en el sheet: " + e.message);
     })
@@ -166,11 +170,7 @@ export async function goSeeAds(page, browser) {
   await waitAndClick(page, viewAdsSelector, 402, 707);
 
   // inicializar contexto global
-  globalThis.context ??= {
-    attempts: 0,
-    clicks: 0,
-    saldo: null,
-  };
+  
 
   await seeFoundAd(page, browser);
 }
