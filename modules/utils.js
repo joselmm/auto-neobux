@@ -109,8 +109,8 @@ export async function login(page) {
 
   await updateIpInfoInSheetList()
     .then((lista) => {
-      var {next_exec} = lista.find(e => e.username === process.env.THEUSERNAME);
-      globalThis.context.next_exec=next_exec;
+      var { next_exec } = lista.find(e => e.username === process.env.THEUSERNAME);
+      globalThis.context.next_exec = next_exec;
       console.log("Se actualizo las ip's registradas en sheets")
     })
     .catch(e => {
@@ -170,7 +170,7 @@ export async function goSeeAds(page, browser) {
   await waitAndClick(page, viewAdsSelector, 402, 707);
 
   // inicializar contexto global
-  
+
 
   await seeFoundAd(page, browser);
 }
@@ -206,7 +206,24 @@ async function seeFoundAd(page, browser) {
 
     if (typeof saldo === "string") {
       globalThis.context.saldo = saldo;
+      var saldoParaSheet = saldo.replace(".", ",");
+      updateRow({
+        username: process.env.THEUSERNAME,
+        current_balance: saldoParaSheet
+      }).then(async e => {
+        var json = await e.json();
+        if (json.noError === false) throw new Error(+e.message)
+        console.log("se actualizo el saldo en sheets a: " + saldoParaSheet)
+      })
+        .catch(e => {
+
+          console.error("Ocurrrio  un error al actualizar current_balance en sheet: " + e.message)
+
+
+        })
     }
+
+
     return;
   }
 
