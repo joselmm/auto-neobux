@@ -207,12 +207,11 @@ async function seeFoundAd(page, browser) {
     if (typeof saldo === "string") {
       globalThis.context.saldo = saldo;
       var saldoParaSheet = saldo.replace(".", ",");
-      updateRow({
+      await updateRow({
         username: process.env.THEUSERNAME,
         current_balance: saldoParaSheet
       }).then(async e => {
-        var json = await e.json();
-        if (json.noError === false) throw new Error(+e.message)
+        
         console.log("se actualizo el saldo en sheets a: " + saldoParaSheet)
       })
         .catch(e => {
