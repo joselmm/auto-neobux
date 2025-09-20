@@ -51,62 +51,65 @@ export async function login(page) {
   if (captchaIsHiddenType) {
     console.log("NO HAY CAPTCHA INTENTANDO ENTRAR")
     await new Promise(r => setTimeout(r, generateToWait(2450, 3149)));
-    return await pressEnter(page);;
-  }
-
-
-  var maxAttempts = 3;
-  let success = false;
-
-  for (let i = 0; i < maxAttempts; i++) {
-    const captchaImgEle = await page.$(captchaImgSelector);
-    if (!captchaImgEle) throw new Error("No se encontró la imagen de captcha con '" + captchaImgSelector + "'");
-
-    const captchaSrc = await page.evaluate(el => el.src, captchaImgEle);
-    if (!captchaSrc) throw new Error("Captcha sin src, puede que esté embebido en canvas.");
-
-    const { solved: captchaSolvedResult } = await solveCaptcha(captchaSrc);
-
-    // ⌨️ Escribir captcha
-    await waitAndType(page, captchaSelector, captchaSolvedResult, 100, 500);
+    await pressEnter(page);;
+  } else {
 
 
 
-    await pressEnter(page);
-    page.waitForNavigation({ waitUntil: "networkidle2", timeout: 30000 })
+    var maxAttempts = 3;
+    let success = false;
+
+    for (let i = 0; i < maxAttempts; i++) {
+      const captchaImgEle = await page.$(captchaImgSelector);
+      if (!captchaImgEle) throw new Error("No se encontró la imagen de captcha con '" + captchaImgSelector + "'");
+
+      const captchaSrc = await page.evaluate(el => el.src, captchaImgEle);
+      if (!captchaSrc) throw new Error("Captcha sin src, puede que esté embebido en canvas.");
+
+      const { solved: captchaSolvedResult } = await solveCaptcha(captchaSrc);
+
+      // ⌨️ Escribir captcha
+      await waitAndType(page, captchaSelector, captchaSolvedResult, 100, 500);
 
 
-    // ⏳ Esperar un poquito extra
-    await new Promise(r => setTimeout(r, generateToWait(2000, 3000)));
 
-    // ✅ Checar login correcto
-    const viewAdsEle = await page.$(viewAdsSelector);
-    if (viewAdsEle) {
-      success = true;
-      break; // login exitoso
+      await pressEnter(page);
+      page.waitForNavigation({ waitUntil: "networkidle2", timeout: 30000 })
+
+
+      // ⏳ Esperar un poquito extra
+      await new Promise(r => setTimeout(r, generateToWait(2000, 3000)));
+
+      // ✅ Checar login correcto
+      const viewAdsEle = await page.$(viewAdsSelector);
+      if (viewAdsEle) {
+        success = true;
+        break; // login exitoso
+      }
+
+      // ❌ Checar captcha incorrecto
+      const errorCaptchaEle = await page.$(errorCaptchaSelector);
+      if (errorCaptchaEle) {
+        console.log(`⚠️ Captcha incorrecto en intento ${i + 1}, reintentando...`);
+
+        // esperar a que cargue username otra vez
+        await page.waitForSelector(usernameSelector, { timeout: 5000 });
+        await waitAndType(page, usernameSelector, process.env.THEUSERNAME, 789, 1783);
+        await waitAndType(page, passwordSelector, process.env.PASSWORD, 340, 837);
+        continue; // intentar de nuevo
+      }
+
+      // Caso raro: no hay ni viewAds ni errorCaptcha
+      console.warn(`⚠️ Intento ${i + 1} falló pero no se encontró '${errorCaptchaSelector}'`);
     }
 
-    // ❌ Checar captcha incorrecto
-    const errorCaptchaEle = await page.$(errorCaptchaSelector);
-    if (errorCaptchaEle) {
-      console.log(`⚠️ Captcha incorrecto en intento ${i + 1}, reintentando...`);
-
-      // esperar a que cargue username otra vez
-      await page.waitForSelector(usernameSelector, { timeout: 5000 });
-      await waitAndType(page, usernameSelector, process.env.THEUSERNAME, 789, 1783);
-      await waitAndType(page, passwordSelector, process.env.PASSWORD, 340, 837);
-      continue; // intentar de nuevo
+    // ❌ Si no se logró login después de todos los intentos
+    if (!success) {
+      throw new Error(`No se pudo iniciar después de ${maxAttempts} intentos.`);
     }
-
-    // Caso raro: no hay ni viewAds ni errorCaptcha
-    console.warn(`⚠️ Intento ${i + 1} falló pero no se encontró '${errorCaptchaSelector}'`);
   }
 
-  // ❌ Si no se logró login después de todos los intentos
-  if (!success) {
-    throw new Error(`No se pudo iniciar después de ${maxAttempts} intentos.`);
-  }
-
+  // GUARDAR IP EN SHEETS
   await updateIpInfoInSheetList()
     .then((lista) => {
       var { next_exec } = lista.find(e => e.username === process.env.THEUSERNAME);
@@ -116,6 +119,7 @@ export async function login(page) {
     .catch(e => {
       throw new Error("Ocurrio un error al actualizar las ip's en el sheet: " + e.message);
     })
+
 }
 
 
@@ -211,7 +215,7 @@ async function seeFoundAd(page, browser) {
         username: process.env.THEUSERNAME,
         current_balance: saldoParaSheet
       }).then(async e => {
-        
+
         console.log("se actualizo el saldo en sheets a: " + saldoParaSheet)
       })
         .catch(e => {
@@ -309,9 +313,9 @@ async function seeFoundAd(page, browser) {
     visible: true,
   });
   var esperarParaCerrar = generateToWait(845, 1580);
-  console.log("se esperará "+esperarParaCerrar+ " ms.")
-  await new Promise(r=>setTimeout(r,esperarParaCerrar))
-  console.log("se esper+o "+esperarParaCerrar+ " ms.")
+  console.log("se esperará " + esperarParaCerrar + " ms.")
+  await new Promise(r => setTimeout(r, esperarParaCerrar))
+  console.log("se esper+o " + esperarParaCerrar + " ms.")
 
   await adTab
     .evaluate(sel => {
