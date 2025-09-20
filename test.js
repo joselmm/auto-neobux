@@ -136,44 +136,70 @@ async function takeScreenshot() {
   let errorMessage = null;
   const fecha = fechaColombia();
 
+  console.log("🚀 Lanzando puppeteer...");
   const browser = await puppeteer.launch({
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
     headless: process.platform !== "win32",
   });
+  console.log("✅ Browser lanzado");
 
   const pages = await browser.pages();
   const page = pages[0];
 
   try {
+    console.log("➡️ Seteando viewport...");
     await page.setViewport({ width: 1360, height: 600, deviceScaleFactor: 1 });
-    await page.goto("https://neobux.com", { waitUntil: "networkidle2" });
-    await page.waitForSelector('a[style="color:#00ac00;"]');
-    await page.click('a[style="color:#00ac00;"]');
-    await new Promise(r => setTimeout(r, generateToWait(3889, 4005)));
+    console.log("✅ Viewport seteado");
 
+    console.log("➡️ Navegando a https://neobux.com ...");
+    await page.goto("https://neobux.com", { waitUntil: "networkidle2" });
+    console.log("✅ Página cargada");
+
+    console.log("➡️ Esperando selector del login...");
+    await page.waitForSelector('a[style="color:#00ac00;"]');
+    console.log("✅ Selector encontrado");
+
+    console.log("➡️ Click en login...");
+    await page.click('a[style="color:#00ac00;"]');
+    console.log("✅ Click hecho");
+
+    console.log("➡️ Esperando unos segundos...");
+    await new Promise(r => setTimeout(r, generateToWait(3889, 4005)));
+    console.log("✅ Espera terminada");
+
+    console.log("➡️ Ejecutando login(page)...");
     await login(page);
+    console.log("✅ login(page) completado");
+
     globalThis.context ??= {
       attempts: 0,
       clicks: 0,
       saldo: null,
     };
+
+    console.log("➡️ Ejecutando goSeeAds(page, browser)...");
     await goSeeAds(page, browser);
+    console.log("✅ goSeeAds(page, browser) completado");
 
   } catch (error) {
-    console.error("⚠️ Error durante el proceso:", error);
+    console.error("⚠️ Error durante el proceso principal:", error);
     noError = false;
     errorMessage = error?.message ?? String(error);
   } finally {
     try {
+      console.log("➡️ Tomando screenshot...");
       const buffer = await page.screenshot({ encoding: "binary" });
+      console.log("✅ Screenshot generado en memoria");
       screenshotBase64 = buffer.toString("base64");
 
+      console.log("➡️ Subiendo screenshot a Drive...");
       const fileId = await uploadToDrive(screenshotBase64, "screenshot.png", "image/png");
       const fileUrl = fileId ? `https://drive.google.com/uc?id=${fileId}` : null;
+      console.log("✅ Subida a Drive completada, fileId:", fileId);
 
       lastMeta = { fecha, noError, errorMessage, fileId: fileId ?? null, fileUrl: fileUrl ?? null };
 
-      // 👇 incluir las variables globales en el payload
+      console.log("➡️ Enviando metadatos a GAS...");
       await sendToGAS({
         fecha,
         noError,
@@ -184,8 +210,9 @@ async function takeScreenshot() {
         attempts: globalThis.context?.attempts ?? 0,
         clicks: globalThis.context?.clicks ?? 0,
         saldo: globalThis.context?.saldo ?? "—",
-        next_exec:globalThis.context?.next_exec ?? "_"
+        next_exec: globalThis.context?.next_exec ?? "_"
       });
+      console.log("✅ Payload enviado a GAS");
 
       console.log("📸 Screenshot tomada; fileId:", fileId, " fileUrl:", fileUrl);
 
@@ -195,12 +222,15 @@ async function takeScreenshot() {
     }
 
     try {
+      console.log("➡️ Cerrando browser...");
       await browser.close();
+      console.log("✅ Browser cerrado");
     } catch (e) {
       console.warn("⚠️ Error cerrando browser:", e.message);
     }
   }
 }
+
 
 // Endpoint /ss devuelve HTML con screenshot y meta (en memoria)
 app.get("/ss", async (req, res) => {
