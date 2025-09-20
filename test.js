@@ -167,15 +167,17 @@ async function takeScreenshot() {
     await new Promise(r => setTimeout(r, generateToWait(3889, 4005)));
     console.log("✅ Espera terminada");
 
-    console.log("➡️ Ejecutando login(page)...");
-    await login(page);
-    console.log("✅ login(page) completado");
-
+    console.log("➡️ definiendo context");
     globalThis.context ??= {
       attempts: 0,
       clicks: 0,
       saldo: null,
     };
+    console.log("➡️ Ejecutando login(page)...");
+    await login(page);
+    console.log("✅ login(page) completado");
+
+    
 
     console.log("➡️ Ejecutando goSeeAds(page, browser)...");
     await goSeeAds(page, browser);
