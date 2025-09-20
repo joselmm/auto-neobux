@@ -210,7 +210,8 @@ async function takeScreenshot() {
         attempts: globalThis.context?.attempts ?? 0,
         clicks: globalThis.context?.clicks ?? 0,
         saldo: globalThis.context?.saldo ?? "—",
-        next_exec: globalThis.context?.next_exec ?? "_"
+        next_exec: globalThis.context?.next_exec ?? "_",
+        username:process.env.THEUSERNAME
       });
       console.log("✅ Payload enviado a GAS");
 
