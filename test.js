@@ -177,7 +177,7 @@ async function takeScreenshot() {
     await login(page);
     console.log("✅ login(page) completado");
 
-    
+
 
     console.log("➡️ Ejecutando goSeeAds(page, browser)...");
     await goSeeAds(page, browser);
@@ -189,35 +189,38 @@ async function takeScreenshot() {
     errorMessage = error?.message ?? String(error);
   } finally {
     try {
-      console.log("➡️ Tomando screenshot...");
-      const buffer = await page.screenshot({ encoding: "binary" });
-      console.log("✅ Screenshot generado en memoria");
-      screenshotBase64 = buffer.toString("base64");
+      if (noError === false) {
 
-      console.log("➡️ Subiendo screenshot a Drive...");
-      const fileId = await uploadToDrive(screenshotBase64, "screenshot.png", "image/png");
-      const fileUrl = fileId ? `https://drive.google.com/uc?id=${fileId}` : null;
-      console.log("✅ Subida a Drive completada, fileId:", fileId);
+        console.log("➡️ Tomando screenshot... porque hubo un error");
+        const buffer = await page.screenshot({ encoding: "binary" });
+        console.log("✅ Screenshot generado en memoria");
+        screenshotBase64 = buffer.toString("base64");
 
-      lastMeta = { fecha, noError, errorMessage, fileId: fileId ?? null, fileUrl: fileUrl ?? null };
+        console.log("➡️ Subiendo screenshot a Drive...");
+        const fileId = await uploadToDrive(screenshotBase64, "screenshot.png", "image/png");
+        const fileUrl = fileId ? `https://drive.google.com/uc?id=${fileId}` : null;
+        console.log("✅ Subida a Drive completada, fileId:", fileId);
 
-      console.log("➡️ Enviando metadatos a GAS...");
-      await sendToGAS({
-        fecha,
-        noError,
-        errorMessage,
-        fileId,
-        fileUrl,
-        email: process.env.EMAIL ?? "",
-        attempts: globalThis.context?.attempts ?? 0,
-        clicks: globalThis.context?.clicks ?? 0,
-        saldo: globalThis.context?.saldo ?? "—",
-        next_exec: globalThis.context?.next_exec ?? "_",
-        username:process.env.THEUSERNAME
-      });
-      console.log("✅ Payload enviado a GAS");
+        lastMeta = { fecha, noError, errorMessage, fileId: fileId ?? null, fileUrl: fileUrl ?? null };
 
-      console.log("📸 Screenshot tomada; fileId:", fileId, " fileUrl:", fileUrl);
+        console.log("➡️ Enviando metadatos a GAS...");
+        await sendToGAS({
+          fecha,
+          noError,
+          errorMessage,
+          fileId,
+          fileUrl,
+          email: process.env.EMAIL ?? "",
+          attempts: globalThis.context?.attempts ?? 0,
+          clicks: globalThis.context?.clicks ?? 0,
+          saldo: globalThis.context?.saldo ?? "—",
+          next_exec: globalThis.context?.next_exec ?? "_",
+          username: process.env.THEUSERNAME
+        });
+        console.log("✅ Payload enviado a GAS");
+
+        console.log("📸 Screenshot tomada; fileId:", fileId, " fileUrl:", fileUrl);
+      }
 
     } catch (err) {
       console.error("⚠️ Error generando screenshot o subiendo:", err.message);
