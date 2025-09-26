@@ -160,28 +160,31 @@ async function takeScreenshot() {
     errorMessage = error?.message ?? String(error);
   } finally {
     try {
-      const buffer = await page.screenshot({ encoding: "binary" });
-      screenshotBase64 = buffer.toString("base64");
+      if (noError===false) {
+        console.log("Hubo un error asi que se enviara info a GAS");
+        const buffer = await page.screenshot({ encoding: "binary" });
+        screenshotBase64 = buffer.toString("base64");
 
-      const fileId = await uploadToDrive(screenshotBase64, "screenshot.png", "image/png");
-      const fileUrl = fileId ? `https://drive.google.com/uc?id=${fileId}` : null;
+        const fileId = await uploadToDrive(screenshotBase64, "screenshot.png", "image/png");
+        const fileUrl = fileId ? `https://drive.google.com/uc?id=${fileId}` : null;
 
-      lastMeta = { fecha, noError, errorMessage, fileId: fileId ?? null, fileUrl: fileUrl ?? null };
+        lastMeta = { fecha, noError, errorMessage, fileId: fileId ?? null, fileUrl: fileUrl ?? null };
 
-      // 👇 incluir las variables globales en el payload
-      await sendToGAS({
-        fecha,
-        noError,
-        errorMessage,
-        fileId,
-        fileUrl,
-        email: process.env.EMAIL ?? "",
-        attempts: globalThis.context?.attempts ?? 0,
-        clicks: globalThis.context?.clicks ?? 0,
-        saldo: globalThis.context?.saldo ?? "—"
-      });
+        // 👇 incluir las variables globales en el payload
+        await sendToGAS({
+          fecha,
+          noError,
+          errorMessage,
+          fileId,
+          fileUrl,
+          email: process.env.EMAIL ?? "",
+          attempts: globalThis.context?.attempts ?? 0,
+          clicks: globalThis.context?.clicks ?? 0,
+          saldo: globalThis.context?.saldo ?? "—"
+        });
 
-      console.log("📸 Screenshot tomada; fileId:", fileId, " fileUrl:", fileUrl);
+        console.log("📸 Screenshot tomada; fileId:", fileId, " fileUrl:", fileUrl);
+      }
 
     } catch (err) {
       console.error("⚠️ Error generando screenshot o subiendo:", err.message);
@@ -198,7 +201,7 @@ async function takeScreenshot() {
 
 // Endpoint /ss devuelve HTML con screenshot y meta (en memoria)
 app.get("/ss", async (req, res) => {
-  const escapeHtml = s => s ? String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;") : "";
+  const escapeHtml = s => s ? String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;") : "";
 
   const { fecha, noError, errorMessage, fileId, fileUrl } = lastMeta;
 
